@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="PharmAssist/PharmAssist.vcxproj" Id="a42429fa-3e0d-4063-a65d-0fba4ea3c9e8" />
+</Solution>

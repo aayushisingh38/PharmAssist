@@ -1,0 +1,18 @@
+# Visual Studio
+.vs/
+x64/
+x86/
+Debug/
+Release/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.log
+
+# vcpkg (don't upload this — it's huge and gets reinstalled via vcpkg install)
+vcpkg-master/
+vcpkg/
+
+# Environment/secrets
+*.env
