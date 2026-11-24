@@ -1,0 +1,116 @@
+* {
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+/* ---------- Light pharmacy-themed background ----------
+   Built with CSS gradients only (no external image needed) -
+   a soft green tint with a faint repeating cross/plus pattern,
+   similar in spirit to a pharmacy/medical look. */
+body {
+    margin: 0;
+    padding: 40px 20px;
+    min-height: 100vh;
+    background-color: #eef6f1;
+    background-image:
+        linear-gradient(45deg, rgba(27,94,58,0.04) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(27,94,58,0.04) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(27,94,58,0.04) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(27,94,58,0.04) 75%);
+    background-size: 60px 60px;
+    background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+}
+
+.container {
+    max-width: 650px;
+    margin: 0 auto;
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+h1 {
+    color: #1b5e3a;
+    margin: 0;
+    font-size: 40px;
+}
+
+h2 {
+    color: #555;
+    font-weight: normal;
+    margin-top: 4px;
+    margin-bottom: 24px;
+    font-size: 20px;
+}
+
+/* ---------- Form: every field on its own line, clear spacing ---------- */
+.dose-form label {
+    display: block;
+    margin-top: 16px;
+    margin-bottom: 6px;
+    font-size: 18px;
+    color: #333;
+    font-weight: bold;
+}
+
+.dose-form input,
+.dose-form select {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 18px;
+}
+
+.dose-form button {
+    margin-top: 24px;
+    width: 100%;
+    padding: 12px;
+    background: #1b5e3a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.dose-form button:hover {
+    background: #164a2e;
+}
+
+.back-link {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.back-link a {
+    color: #1b5e3a;
+    text-decoration: none;
+}
+
+/* ---------- Result card (used on the result page after submitting) ---------- */
+.result-card {
+    margin-top: 10px;
+    padding: 25px;
+    border-radius: 8px;
+    background: #f0f9f4;
+    border-left: 5px solid #1b5e3a;
+}
+
+.result-card.warning {
+    background: #fff3f0;
+    border-left: 5px solid #c0392b;
+}
+
+.result-card p {
+    margin: 8px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.result-card .status {
+    font-weight: bold;
+    margin-top: 12px;
+}

@@ -1,0 +1,154 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+/* ---------- Whole page: gradient + soft decorative shapes ---------- */
+body {
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    background: linear-gradient(180deg, #eaf5ee 0%, #f7fbf8 40%, #ffffff 100%);
+    color: #333;
+}
+
+/* Soft blurred circles floating in the background - gives depth without noise */
+body::before {
+    content: "";
+    position: fixed;
+    top: -100px;
+    left: -100px;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(27,94,58,0.10) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: 0;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    bottom: -150px;
+    right: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(27,94,58,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: 0;
+}
+
+/* Make sure real content sits above the decorative shapes */
+.navbar, .hero, .cards, footer {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---------- Top navigation bar ---------- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    background: transparent;
+    border-bottom: 1px solid rgba(27,94,58,0.15);
+}
+
+.logo {
+    font-size: 22px;
+    font-weight: bold;
+    color: #1b5e3a;
+}
+
+.navbar nav a {
+    margin-left: 20px;
+    text-decoration: none;
+    color: #333;
+}
+
+.navbar nav a:hover {
+    color: #1b5e3a;
+}
+
+/* ---------- Hero section ---------- */
+.hero {
+    text-align: center;
+    padding: 70px 20px 50px 20px;
+}
+
+.hero h1 {
+    font-size: 52px;
+    color: #1b5e3a;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 12px rgba(27,94,58,0.15);
+}
+
+.hero p {
+    font-size: 18px;
+    margin-top: 12px;
+    color: #555;
+}
+
+.subtext {
+    font-size: 15px;
+    color: #888;
+}
+
+/* Small decorative plus icon above the title - lightweight, pharmacy-themed */
+.hero::before {
+    content: "+";
+    display: block;
+    font-size: 47px;
+    font-weight: bold;
+    color: rgba(0, 11, 5, 0.35);
+    margin-bottom: 6px;
+}
+
+/* ---------- Cards section ---------- */
+.cards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    padding: 20px 40px 70px 40px;
+}
+
+.card {
+    background-color: rgba(255,255,255,0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(27,94,58,0.12);
+    border-radius: 12px;
+    padding: 28px 22px;
+    width: 220px;
+    text-decoration: none;
+    color: #333;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: 0.2s;
+}
+.card:hover {
+    border-color: #1b5e3a;
+    box-shadow: 0 6px 16px rgba(27,94,58,0.14);
+    transform: translateY(-3px);
+}
+.card h2 {
+    font-size: 18px;
+    color: #1b5e3a;
+    margin-bottom: 10px;
+}
+
+.card p {
+    font-size: 14px;
+    color: #666;
+}
+
+/* ---------- Footer ---------- */
+footer {
+    text-align: center;
+    padding: 24px;
+    background: transparent;
+    border-top: 1px solid rgba(27,94,58,0.15);
+    color: #888;
+    font-size: 14px;
+}

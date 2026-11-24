@@ -21,15 +21,29 @@ int main() {
 
     // ---------- Route 1: Serve the HTML form ----------
     CROW_ROUTE(app, "/")([]() {
-        std::string html = readFile("C:/Projects/PharmAssist/public/index.html");
+        std::string html = readFile("C:/Projects/PharmAssist/public/home.html");
         crow::response res(html);
         res.set_header("Content-Type", "text/html");
         return res;
         });
 
+    CROW_ROUTE(app, "/home.css")([]() {
+        std::string css = readFile("C:/Projects/PharmAssist/public/home.css");
+        crow::response res(css);
+        res.set_header("Content-Type", "text/css");
+        return res;
+        });
+
+    CROW_ROUTE(app, "/dose-calculator")([]() {
+        std::string html = readFile("C:/Projects/PharmAssist/public/dose-calculator.html");
+        crow::response res(html);
+        res.set_header("Content-Type", "text/html");
+        return res;
+        });
     // ---------- Route 2: Serve the CSS file ----------
-    CROW_ROUTE(app, "/style.css")([]() {
-        std::string css = readFile("C:/Projects/PharmAssist/public/style.css");
+
+    CROW_ROUTE(app, "/dose-calculator.css")([]() {
+        std::string css = readFile("C:/Projects/PharmAssist/public/dose-calculator.css");
         crow::response res(css);
         res.set_header("Content-Type", "text/css");
         return res;
@@ -39,11 +53,12 @@ int main() {
     CROW_ROUTE(app, "/calculate").methods("POST"_method)
         ([](const crow::request& req) {
 
-        // Parse form data sent from the HTML form
         auto params = crow::query_string("?" + req.body);
 
+        std::string drugName = params.get("drugname");
         double weight = std::stod(params.get("weight"));
         int age = std::stoi(params.get("age"));
+        std::string route = params.get("route");
         int dosesPerDay = std::stoi(params.get("frequency"));
 
         std::string ageGroup = (age < 12) ? "pediatric" : "adult";
@@ -51,38 +66,69 @@ int main() {
         double singleDose = 0, maxSingle = 0, maxDaily = 0;
         int intervalHours = 0;
         bool ruleFound = false;
+        bool drugFound = false;
 
         try {
-            // ---------- Connect to MySQL ----------
             Session session("localhost", 33060, "root", "root");
             Schema db = session.getSchema("pharmassist");
-            Table rules = db.getTable("dosing_rules");
 
-            RowResult result = rules.select("dose_per_kg", "fixed_dose",
-                "max_single_dose", "max_daily_dose_per_kg",
-                "max_daily_dose_fixed", "dose_interval_hours")
-                .where("drug_id = 1 AND age_group = :ageGroup AND route = 'oral'")
-                .bind("ageGroup", ageGroup)
+            // ---------- Step 1: Look up the drug_id for whichever drug was selected ----------
+            Table drugsTable = db.getTable("drugs");
+            RowResult drugResult = drugsTable.select("drug_id")
+                .where("drug_name = :name")
+                .bind("name", drugName)
                 .execute();
 
-            Row row = result.fetchOne();
-            if (row) {
-                ruleFound = true;
-                bool isWeightBased = !row[0].isNull();
+            Row drugRow = drugResult.fetchOne();
+            int drugId = 0;
 
-                if (isWeightBased) {
-                    double dosePerKg = row[0].get<double>();
-                    double maxDailyPerKg = row[3].get<double>();
-                    singleDose = dosePerKg * weight;
-                    maxDaily = maxDailyPerKg * weight;
+            if (drugRow) {
+                drugFound = true;
+                drugId = drugRow[0].get<int>();
+
+                // ---------- Step 2: Look up the dosing rule for that drug + age group + route ----------
+                Table rules = db.getTable("dosing_rules");
+                RowResult ruleResult = rules.select("dose_per_kg", "fixed_dose",
+                    "max_single_dose", "max_daily_dose_per_kg",
+                    "max_daily_dose_fixed", "dose_interval_hours")
+                    .where("drug_id = :id AND age_group = :ageGroup AND route = :route")
+                    .bind("id", drugId)
+                    .bind("ageGroup", ageGroup)
+                    .bind("route", route)
+                    .execute();
+
+                Row row = ruleResult.fetchOne();
+                if (row) {
+                    ruleFound = true;
+                    bool isWeightBased = !row[0].isNull();
+
+                    if (isWeightBased) {
+                        double dosePerKg = row[0].get<double>();
+                        double maxDailyPerKg = row[3].get<double>();
+                        singleDose = dosePerKg * weight;
+                        maxDaily = maxDailyPerKg * weight;
+                    }
+                    else {
+                        singleDose = row[1].get<double>();
+                        maxDaily = row[4].get<double>();
+                    }
+                    maxSingle = row[2].get<double>();
+                    intervalHours = row[5].get<int>();
                 }
-                else {
-                    singleDose = row[1].get<double>();
-                    maxDaily = row[4].get<double>();
-                }
-                maxSingle = row[2].get<double>();
-                intervalHours = row[5].get<int>();
             }
+
+            // ---------- Log to search_history (only if we actually calculated something) ----------
+            if (ruleFound) {
+                double totalDailyDoseForLog = singleDose * dosesPerDay;
+                bool flaggedForLog = (singleDose > maxSingle) || (totalDailyDoseForLog > maxDaily);
+
+                Table historyTable = db.getTable("search_history");
+                historyTable.insert("drug_id", "weight", "age", "route",
+                    "calculated_single_dose", "calculated_daily_dose", "flag_triggered")
+                    .values(drugId, weight, age, route, singleDose, totalDailyDoseForLog, flaggedForLog ? 1 : 0)
+                    .execute();
+            }
+
             session.close();
         }
         catch (const mysqlx::Error& err) {
@@ -91,47 +137,353 @@ int main() {
             return res;
         }
 
-        if (!ruleFound) {
-            crow::response res("<h2>No dosing rule found for this age group.</h2>");
-            res.set_header("Content-Type", "text/html");
-            return res;
-        }
-
-        // ---------- Calculate total daily dose and check limits ----------
-        double totalDailyDose = singleDose * dosesPerDay;
-        bool singleExceeds = singleDose > maxSingle;
-        bool dailyExceeds = totalDailyDose > maxDaily;
-        bool flagged = singleExceeds || dailyExceeds;
-
-        // ---------- Build the result HTML ----------
         std::ostringstream html;
-        html << "<!DOCTYPE html><html><head><title>Result</title>"
-            << "<link rel='stylesheet' href='/style.css'></head><body>"
+        html << "<!DOCTYPE html><html><head><title>Dose Result</title>"
+            << "<link rel='stylesheet' href='/dose-calculator.css'></head><body>"
             << "<div class='container'>"
             << "<h1>PharmAssist</h1>"
-            << "<div class='result-card " << (flagged ? "warning" : "") << "'>"
-            << "<h3>Dose Calculation Result</h3>"
-            << "<p><strong>Drug:</strong> Paracetamol</p>"
-            << "<p><strong>Age group:</strong> " << ageGroup << "</p>"
-            << "<p><strong>Calculated single dose:</strong> " << singleDose << " mg</p>"
-            << "<p><strong>Frequency:</strong> every " << intervalHours << " hrs</p>"
-            << "<p><strong>Calculated daily dose:</strong> " << totalDailyDose << " mg</p>"
-            << "<p><strong>Max reference single dose:</strong> " << maxSingle << " mg</p>"
-            << "<p><strong>Max reference daily dose:</strong> " << maxDaily << " mg</p>";
+            << "<h2>Dose Calculation Result</h2>";
 
-        if (flagged) {
-            html << "<p class='status'>WARNING: Dose exceeds safe limit. Verify before proceeding.</p>";
+        if (!drugFound) {
+            html << "<div class='result-card warning'>"
+                << "<p>No information found for \"" << drugName << "\" in our database.</p>"
+                << "</div>";
+        }
+        else if (!ruleFound) {
+            html << "<div class='result-card warning'>"
+                << "<p>No dosing rule available for <strong>" << drugName << "</strong> "
+                << "(" << ageGroup << ", " << route << " route). "
+                << "This combination may not be supported yet, or may require specialist guidance.</p>"
+                << "</div>";
         }
         else {
-            html << "<p class='status'>Within safe limits.</p>";
+            double totalDailyDose = singleDose * dosesPerDay;
+            bool singleExceeds = singleDose > maxSingle;
+            bool dailyExceeds = totalDailyDose > maxDaily;
+            bool flagged = singleExceeds || dailyExceeds;
+
+            html << "<div class='result-card " << (flagged ? "warning" : "") << "'>"
+                << "<p><strong>Drug:</strong> " << drugName << "</p>"
+                << "<p><strong>Age group:</strong> " << ageGroup << "</p>"
+                << "<p><strong>Route:</strong> " << route << "</p>"
+                << "<p><strong>Calculated single dose:</strong> " << singleDose << " mg</p>"
+                << "<p><strong>Frequency:</strong> every " << intervalHours << " hrs (reference)</p>"
+                << "<p><strong>Calculated daily dose:</strong> " << totalDailyDose << " mg</p>"
+                << "<p><strong>Max reference single dose:</strong> " << maxSingle << " mg</p>"
+                << "<p><strong>Max reference daily dose:</strong> " << maxDaily << " mg</p>";
+
+            if (flagged) {
+                html << "<p class='status'>WARNING: Dose exceeds safe limit. Verify before proceeding.</p>";
+            }
+            else {
+                html << "<p class='status'>Within safe limits.</p>";
+            }
+            html << "</div>";
         }
 
-        html << "</div><p><a href='/'>Calculate another dose</a></p></div></body></html>";
+        html << "<p style='margin-top:20px;'><a href='/dose-calculator'>Calculate another dose</a></p>"
+            << "<p><a href='/'>Back to Home</a></p>"
+            << "</div></body></html>";
 
         crow::response res(html.str());
         res.set_header("Content-Type", "text/html");
         return res;
             });
+
+    // ---------- Route: Serve the drug-info search page ----------
+    CROW_ROUTE(app, "/drug-info")([]() {
+        std::string html = readFile("C:/Projects/PharmAssist/public/drug-info.html");
+        crow::response res(html);
+        res.set_header("Content-Type", "text/html");
+        return res;
+        });
+
+    // ---------- Route: Serve the drug-info CSS file ----------
+    CROW_ROUTE(app, "/drug-info.css")([]() {
+        std::string css = readFile("C:/Projects/PharmAssist/public/drug-info.css");
+        crow::response res(css);
+        res.set_header("Content-Type", "text/css");
+        return res;
+        });
+
+    // ---------- Route: Handle search and show drug info ----------
+    CROW_ROUTE(app, "/drug-info-result").methods("POST"_method)
+        ([](const crow::request& req) {
+
+        auto params = crow::query_string("?" + req.body);
+        std::string drugName = params.get("drugname");
+
+        std::ostringstream html;
+        html << "<!DOCTYPE html><html><head><title>Drug Info Result</title>"
+            << "<link rel='stylesheet' href='/drug-info.css'></head><body>"
+            << "<div class='container'>"
+            << "<h1>PharmAssist</h1>"
+            << "<h2>Drug Information Result</h2>";
+
+        try {
+            Session session("localhost", 33060, "root", "root");
+            Schema db = session.getSchema("pharmassist");
+            Table info = db.getTable("drug_info");
+
+            RowResult result = info.select("drug_name", "generic_name", "category",
+                "mechanism_of_action", "common_uses",
+                "dosage_form", "route", "side_effects")
+                .where("drug_name = :name")
+                .bind("name", drugName)
+                .execute();
+
+            Row row = result.fetchOne();
+
+            if (row) {
+                html << "<div class='info-card'>"
+                    << "<p><strong>Drug Name:</strong> " << row[0].get<std::string>() << "</p>"
+                    << "<p><strong>Generic Name:</strong> " << row[1].get<std::string>() << "</p>"
+                    << "<p><strong>Category:</strong> " << row[2].get<std::string>() << "</p>"
+                    << "<p><strong>Mechanism of Action:</strong> " << row[3].get<std::string>() << "</p>"
+                    << "<p><strong>Common Uses:</strong> " << row[4].get<std::string>() << "</p>"
+                    << "<p><strong>Dosage Form:</strong> " << row[5].get<std::string>() << "</p>"
+                    << "<p><strong>Route:</strong> " << row[6].get<std::string>() << "</p>"
+                    << "<p><strong>Side Effects:</strong> " << row[7].get<std::string>() << "</p>"
+                    << "</div>";
+            }
+            else {
+                html << "<div class='not-found'>No information found for \"" << drugName << "\".</div>";
+            }
+            session.close();
+        }
+        catch (const mysqlx::Error& err) {
+            html << "<div class='not-found'>Database error: " << err.what() << "</div>";
+        }
+
+        html << "<p style='margin-top:20px;'><a href='/drug-info'>Search another drug</a></p>"
+            << "<p><a href='/'>Back to Home</a></p>"
+            << "</div></body></html>";
+
+        crow::response res(html.str());
+        res.set_header("Content-Type", "text/html");
+        return res;
+            });
+
+    // ---------- Route: Serve the interaction checker page ----------
+    CROW_ROUTE(app, "/drug-interaction")([]() {
+        std::string html = readFile("C:/Projects/PharmAssist/public/drug-interaction.html");
+        crow::response res(html);
+        res.set_header("Content-Type", "text/html");
+        return res;
+        });
+
+    // ---------- Route: Handle the two-drug check ----------
+    CROW_ROUTE(app, "/interaction-result").methods("POST"_method)
+        ([](const crow::request& req) {
+
+        auto params = crow::query_string("?" + req.body);
+        std::string drug1 = params.get("drug1");
+        std::string drug2 = params.get("drug2");
+
+        std::ostringstream html;
+        html << "<!DOCTYPE html><html><head><title>Interaction Result</title>"
+            << "<link rel='stylesheet' href='/drug-info.css'></head><body>"
+            << "<div class='container'>"
+            << "<h1>PharmAssist</h1>"
+            << "<h2>Drug Interaction Result</h2>";
+
+        try {
+            Session session("localhost", 33060, "root", "root");
+            Schema db = session.getSchema("pharmassist");
+            Table interactions = db.getTable("interactions");
+
+            // Check both orders: (drug1, drug2) OR (drug2, drug1)
+            // because the pair could be stored either way in the table
+            RowResult result = interactions.select("drug_a", "drug_b", "severity", "description")
+                .where("(drug_a = :d1 AND drug_b = :d2) OR (drug_a = :d2 AND drug_b = :d1)")
+                .bind("d1", drug1)
+                .bind("d2", drug2)
+                .execute();
+
+            Row row = result.fetchOne();
+
+            if (row) {
+                std::string severity = row[2].get<std::string>();
+
+                // Choose a CSS class based on severity for color-coding
+                std::string cardClass = "info-card";
+                if (severity == "Major") cardClass = "not-found";  // reuse red style for major warning
+
+                html << "<div class='" << cardClass << "'>"
+                    << "<p><strong>Drug A:</strong> " << row[0].get<std::string>() << "</p>"
+                    << "<p><strong>Drug B:</strong> " << row[1].get<std::string>() << "</p>"
+                    << "<p><strong>Severity:</strong> " << severity << "</p>"
+                    << "<p><strong>Details:</strong> " << row[3].get<std::string>() << "</p>"
+                    << "</div>";
+            }
+            else {
+                html << "<div class='info-card'>"
+                    << "<p>No known interaction found between <strong>" << drug1
+                    << "</strong> and <strong>" << drug2 << "</strong> in our database.</p>"
+                    << "<p style='font-size:12px; color:#777;'>Note: This does not guarantee "
+                    << "the combination is safe - only that no interaction is recorded here. "
+                    << "Always verify with a pharmacist or reliable reference.</p>"
+                    << "</div>";
+            }
+            session.close();
+        }
+        catch (const mysqlx::Error& err) {
+            html << "<div class='not-found'>Database error: " << err.what() << "</div>";
+        }
+
+        html << "<p style='margin-top:20px;'><a href='/drug-interaction'>Check another pair</a></p>"
+            << "<p><a href='/'>Back to Home</a></p>"
+            << "</div></body></html>";
+
+        crow::response res(html.str());
+        res.set_header("Content-Type", "text/html");
+        return res;
+            });
+
+    // ---------- Route: Serve the contraindication checker page ----------
+    CROW_ROUTE(app, "/contraindications")([]() {
+        std::string html = readFile("C:/Projects/PharmAssist/public/contraindications.html");
+        crow::response res(html);
+        res.set_header("Content-Type", "text/html");
+        return res;
+        });
+
+    // ---------- Route: Handle the drug + condition check ----------
+    CROW_ROUTE(app, "/contraindication-result").methods("POST"_method)
+        ([](const crow::request& req) {
+
+        auto params = crow::query_string("?" + req.body);
+        std::string drug = params.get("drug");
+        std::string condition = params.get("condition");
+
+        std::ostringstream html;
+        html << "<!DOCTYPE html><html><head><title>Contraindication Result</title>"
+            << "<link rel='stylesheet' href='/drug-info.css'></head><body>"
+            << "<div class='container'>"
+            << "<h1>PharmAssist</h1>"
+            << "<h2>Contraindication Result</h2>";
+
+        try {
+            Session session("localhost", 33060, "root", "root");
+            Schema db = session.getSchema("pharmassist");
+            Table contra = db.getTable("contraindications");
+
+            // Match drug name exactly, but allow partial match on condition
+            // (e.g. user types "ulcer" and it matches "Peptic ulcer disease")
+            RowResult result = contra.select("drug_name", "condition_name", "severity", "description")
+                .where("drug_name = :drug AND condition_name LIKE :cond")
+                .bind("drug", drug)
+                .bind("cond", "%" + condition + "%")
+                .execute();
+
+            Row row = result.fetchOne();
+
+            if (row) {
+                std::string severity = row[2].get<std::string>();
+                std::string cardClass = "info-card";
+                if (severity == "Major") cardClass = "not-found";  // red style for major warning
+
+                html << "<div class='" << cardClass << "'>"
+                    << "<p><strong>Drug:</strong> " << row[0].get<std::string>() << "</p>"
+                    << "<p><strong>Condition:</strong> " << row[1].get<std::string>() << "</p>"
+                    << "<p><strong>Severity:</strong> " << severity << "</p>"
+                    << "<p><strong>Details:</strong> " << row[3].get<std::string>() << "</p>"
+                    << "</div>";
+            }
+            else {
+                html << "<div class='info-card'>"
+                    << "<p>No recorded contraindication found for <strong>" << drug
+                    << "</strong> with <strong>" << condition << "</strong> in our database.</p>"
+                    << "<p style='font-size:12px; color:#777;'>Note: This does not guarantee "
+                    << "safety - only that no contraindication is recorded here. "
+                    << "Always verify with a pharmacist or reliable reference.</p>"
+                    << "</div>";
+            }
+            session.close();
+        }
+        catch (const mysqlx::Error& err) {
+            html << "<div class='not-found'>Database error: " << err.what() << "</div>";
+        }
+
+        html << "<p style='margin-top:20px;'><a href='/contraindications'>Check another</a></p>"
+            << "<p><a href='/'>Back to Home</a></p>"
+            << "</div></body></html>";
+
+        crow::response res(html.str());
+        res.set_header("Content-Type", "text/html");
+        return res;
+            });
+
+    // ---------- Route: Show past dose calculation searches ----------
+    CROW_ROUTE(app, "/search-history")([]() {
+
+        std::ostringstream html;
+        html << "<!DOCTYPE html><html><head><title>Search History</title>"
+            << "<link rel='stylesheet' href='/drug-info.css'>"
+            << "<style>"
+            << "table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }"
+            << "th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }"
+            << "th { background: #1b5e3a; color: white; }"
+            << "tr:nth-child(even) { background: #f4f9f6; }"
+            << ".flag-yes { color: #c0392b; font-weight: bold; }"
+            << "</style></head><body>"
+            << "<div class='container' style='max-width: 800px;'>"
+            << "<h1>PharmAssist</h1>"
+            << "<h2>Search History</h2>";
+
+        try {
+            Session session("localhost", 33060, "root", "root");
+            Schema db = session.getSchema("pharmassist");
+            session.sql("USE pharmassist").execute();
+            SqlResult result = session.sql(
+                "SELECT d.drug_name, h.weight, h.age, h.route, "
+                "h.calculated_single_dose, h.calculated_daily_dose, h.flag_triggered, "
+                "DATE_FORMAT(h.query_time, '%d-%m-%Y %H:%i:%s') "
+                "FROM search_history h LEFT JOIN drugs d ON h.drug_id = d.drug_id "
+                "ORDER BY h.query_time DESC LIMIT 20").execute();
+
+            html << "<table>"
+                << "<tr><th>Date/Time</th><th>Drug</th><th>Weight (kg)</th><th>Age</th><th>Route</th>"
+                << "<th>Single Dose (mg)</th><th>Daily Dose (mg)</th><th>Flagged?</th></tr>";
+
+            bool anyRows = false;
+            Row row;
+            while ((row = result.fetchOne())) {
+                anyRows = true;
+                bool isFlagged = row[6].get<int>() == 1;
+                std::string drugLabel = row[0].isNull() ? "Unknown" : row[0].get<std::string>();
+
+                html << "<tr>"
+                    << "<td>" << row[7].get<std::string>() << "</td>"
+                    << "<td>" << drugLabel << "</td>"
+                    << "<td>" << row[1].get<double>() << "</td>"
+                    << "<td>" << row[2].get<int>() << "</td>"
+                    << "<td>" << row[3].get<std::string>() << "</td>"
+                    << "<td>" << row[4].get<double>() << "</td>"
+                    << "<td>" << row[5].get<double>() << "</td>"
+                    << "<td class='" << (isFlagged ? "flag-yes" : "") << "'>" << (isFlagged ? "Yes" : "No") << "</td>"
+                    << "</tr>";
+            }
+            html << "</table>";
+
+            if (!anyRows) {
+                html << "<p style='margin-top:15px; color:#777;'>No searches recorded yet. "
+                    << "Try the Dose Calculator first.</p>";
+            }
+
+            session.close();
+        }
+        catch (const mysqlx::Error& err) {
+            html << "<div class='not-found'>Database error: " << err.what() << "</div>";
+        }
+
+        html << "<p style='margin-top:20px;'><a href='/'>Back to Home</a></p>"
+            << "</div></body></html>";
+
+        crow::response res(html.str());
+        res.set_header("Content-Type", "text/html");
+        return res;
+        });
 
     app.port(18080).multithreaded().run();
 }

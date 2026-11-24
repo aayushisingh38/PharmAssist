@@ -2,23 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>PharmAssist - Paracetamol Dose Calculator</title>
-<link rel="stylesheet" href="style.css">
+<title>PharmAssist - Dose Calculator</title>
+<link rel="stylesheet" href="/dose-calculator.css">
 </head>
 <body>
 
 <div class="container">
-    <h1>PharmAssist</h1>
-    <h2>Paracetamol Dose Calculator</h2>
 
-    <!-- 
-      NOTE: This form currently just demonstrates layout.
-      To actually connect this to your C++ backend, action="/calculate"
-      would need to point to a CGI executable or a Crow/Pistache route
-      that runs the same logic as dose_calculator.cpp and returns
-      the result section below, filled in dynamically.
-    -->
+    <h1>PharmAssist</h1>
+    <h2>Dose Calculator</h2>
+
     <form action="/calculate" method="POST" class="dose-form">
+
+        <label for="drugname">Drug Name</label>
+        <input type="text" id="drugname" name="drugname" placeholder="e.g. Paracetamol" required>
+
         <label for="weight">Patient Weight (kg)</label>
         <input type="number" step="0.1" id="weight" name="weight" required>
 
@@ -28,10 +26,14 @@
         <label for="route">Route</label>
         <select id="route" name="route">
             <option value="oral">Oral</option>
+            <option value="iv">IV</option>
+            <option value="topical">Topical</option>
         </select>
 
         <label for="frequency">Doses per day</label>
         <select id="frequency" name="frequency">
+            <option value="1">1 (once daily)</option>
+            <option value="2">2 (every 12 hrs)</option>
             <option value="3">3 (every 8 hrs)</option>
             <option value="4" selected>4 (every 6 hrs)</option>
             <option value="6">6 (every 4 hrs)</option>
@@ -40,15 +42,7 @@
         <button type="submit">Calculate Dose</button>
     </form>
 
-    <!-- Example of what the result block looks like once filled in -->
-    <div class="result-card warning">
-        <h3>Dose Calculation Result</h3>
-        <p><strong>Drug:</strong> Paracetamol</p>
-        <p><strong>Calculated single dose:</strong> 270 mg</p>
-        <p><strong>Calculated daily dose:</strong> 1080 mg</p>
-        <p><strong>Max reference daily dose:</strong> 1080 mg</p>
-        <p class="status">STATUS: Within safe limits (borderline)</p>
-    </div>
+    <p class="back-link"><a href="/">Back to Home</a></p>
 
 </div>
 

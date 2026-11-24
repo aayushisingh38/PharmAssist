@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PharmAssist - Drug Interaction</title>
+<link rel="stylesheet" href="/drug-info.css">
+</head>
+<body>
+
+<div class="container">
+
+    <h1>PharmAssist</h1>
+    <h2>Drug Interaction Checker</h2>
+
+    <!-- Takes two drug names and checks if they interact -->
+    <form action="/interaction-result" method="POST" class="search-form">
+        <label for="drug1">First Drug</label>
+        <input type="text" id="drug1" name="drug1" placeholder="e.g. Ibuprofen" required>
+
+        <label for="drug2">Second Drug</label>
+        <input type="text" id="drug2" name="drug2" placeholder="e.g. Amlodipine" required>
+
+        <button type="submit">Check Interaction</button>
+    </form>
+
+    <p class="back-link"><a href="/">Back to Home</a></p>
+
+</div>
+
+</body>
+</html>

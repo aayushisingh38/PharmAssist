@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PharmAssist - Drug Information</title>
+<link rel="stylesheet" href="/drug-info.css">
+</head>
+<body>
+
+<div class="container">
+
+    <h1>PharmAssist</h1>
+    <h2>Drug Information</h2>
+
+    <!-- Simple search form: user types a drug name, submits, gets info back -->
+    <form action="/drug-info-result" method="POST" class="search-form">
+        <label for="drugname">Enter Drug Name</label>
+        <input type="text" id="drugname" name="drugname" placeholder="e.g. Paracetamol" required>
+        <button type="submit">Search</button>
+    </form>
+
+    <p class="back-link"><a href="/">Back to Home</a></p>
+
+</div>
+
+</body>
+</html>
