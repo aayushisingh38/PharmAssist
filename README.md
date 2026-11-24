@@ -72,7 +72,7 @@ PharmAssist/                 # repository root
 │   ├── drug-interaction.html
 │   └── contraindications.html
 ├── PharmAssist.slnx         # Visual Studio solution
-└── screenshots/             # add your screenshots here
+└── screenshots/             # screenshots here
 ```
 
 The SQL scripts (`schema.sql`, `drug-info.sql`, `interactions.sql`, `contraindications.sql`) create the database tables and sample data.
