@@ -20,15 +20,6 @@ It combines pharmacy knowledge (BPharm) with software development: the C++ progr
 
 ---
 
-## Screenshots
-
-> Add your screenshots to a `screenshots/` folder and link them here, for example:
->
-> `![Home](screenshots/home.png)`
-> `![Dose warning](screenshots/dose-warning.png)`
-
----
-
 ## Tech Stack
 
 - **C++**: application logic, calculations, decision rules
@@ -98,20 +89,11 @@ The SQL scripts (`schema.sql`, `drug-info.sql`, `interactions.sql`, `contraindic
    vcpkg install mysql-connector-cpp:x64-windows
    ```
 3. **Create the database:** in MySQL Workbench, run `schema.sql`, then `drug-info.sql`, `interactions.sql` and `contraindications.sql`. Run each only once.
-4. **Configure** the MySQL password in `main.cpp` (`Session session("localhost", 33060, "root", "<your password>")`) and make sure the file paths in `readFile(...)` match where you saved the `Public/` folder.
+4. **Configure** the MySQL password in `main.cpp` (`Session session("localhost", 33060, "<your password>")`) and make sure the file paths in `readFile(...)` match where you saved the `Public/` folder.
 5. **Build and run** in Visual Studio (`Ctrl+Shift+B`, then `Ctrl+F5`) with the build set to **x64**.
 6. Open **http://localhost:18080** in your browser.
 
 ---
-
-## Limitations
-
-- Small dataset: 6 drugs with dosing rules, 10 with reference information.
-- `drug_info`, `interactions` and `contraindications` reference drugs by name (text) rather than `drug_id` foreign keys.
-- Binary age classification (paediatric below 12, otherwise adult).
-- Only dose calculations are logged to search history.
-- Drug name search is exact-match for Drug Info and Interaction.
-- No user authentication; runs locally only.
 
 ## Future Enhancements
 
@@ -127,4 +109,4 @@ The SQL scripts (`schema.sql`, `drug-info.sql`, `interactions.sql`, `contraindic
 
 ## Author
 
-**Aayushi Singh**: MSc Bioinformatics. Interested in computer-aided drug design and cheminformatics.
+**Aayushi Singh**: MSc Bioinformatics. Interested in computer-aided drug design and Bioinformatics.
